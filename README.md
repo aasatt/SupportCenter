@@ -5,9 +5,27 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Swift-5.2-Orange">
-  <img src="https://img.shields.io/badge/Installation-SPM-brightgreen">
-  <img src="https://img.shields.io/badge/License-MIT-lightgrey.svg">
+    <img src="https://img.shields.io/badge/Swift-5.2-Orange">
+    <img src="https://img.shields.io/badge/iOS-13+-blue.svg">
+    <img src="https://img.shields.io/badge/Installation-SPM-brightgreen">
+    <img src="https://img.shields.io/badge/License-MIT-lightgrey.svg">
+</p>
+
+SupportCenter is the indie developer's solution to in app support. It provides a lightweight UI library that integrates with the [SendGrid API](https://sendgrid.com) so there is no need to need to integrate 3rd party libraries that bloat your app size and expose your users to unwanted tracking.
+
+## Features
+* [X] SendGrid integration
+* [X] Stand-alone UI components
+* [X] Automatic device metadata gathering
+* [X] Image and video attachments
+* [X] Custom support options
+* [X] Dark/Light Interface
+
+## Screenshots
+<p align="left">
+    <img width="30%" height="30%" src="./Docs/Assets/Popup-Dark.png">
+    <img width="30%" height="30%" src="./Docs/Assets/Compose.png">
+    <img width="30%" height="30%" src="./Docs/Assets/Popup-Light.png">
 </p>
 
 ## Installation
