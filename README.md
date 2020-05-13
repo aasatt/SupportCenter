@@ -20,6 +20,8 @@ SupportCenter is the indie developer's solution to in app support. It provides a
 * [X] Image and video attachments
 * [X] Custom support options
 * [X] Dark/Light Interface
+* [ ] SwiftUI Support
+
 
 ## Screenshots
 <p align="left">
