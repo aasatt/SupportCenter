@@ -37,7 +37,7 @@ class ComposeNavigationController: UINavigationController {
 class ComposeViewController: UIViewController, AttachmentsViewDelegate {
 
     let option: ReportOption
-    let maxAttachmentsSize = 28_000_000
+    let maxAttachmentsSize = 25_000_000
 
     var attachments: [Attachment] = []
 
@@ -62,6 +62,8 @@ class ComposeViewController: UIViewController, AttachmentsViewDelegate {
     lazy var emailTextField: UITextField = {
         let t = UITextField()
         t.translatesAutoresizingMaskIntoConstraints = false
+        t.textContentType = .emailAddress
+        t.keyboardType = .emailAddress
         t.placeholder = "Enter your email"
         t.autocapitalizationType = .none
         t.heightAnchor.constraint(equalToConstant: 50.0).isActive = true
@@ -166,7 +168,8 @@ class ComposeViewController: UIViewController, AttachmentsViewDelegate {
         guard let content = messageTextView.text, !content.isEmpty else { return }
         view.endEditing(true)
         sender.isEnabled = false
-        let loadingAlert = presentAlert(title: "Sending", description: nil, showDismiss: false, dismissed: nil)
+        let loadingAlert = ProgressAlert(title: "Sending", message: nil, preferredStyle: .alert)
+        present(loadingAlert, animated: true, completion: nil)
         SupportCenter.sendgrid?.sendSupportEmail(ofType: option, senderEmail: senderEmail, message: content, attachments: attachments, completion: { [weak self] (result) in
             loadingAlert.dismiss(animated: true, completion: {
                 self?.handleSendResult(result: result, sender: sender)
@@ -186,6 +189,7 @@ class ComposeViewController: UIViewController, AttachmentsViewDelegate {
         case .failure(let error):
             print(error)
             sender.isEnabled = true
+            self.presentAlert(title: "Failed to Send Feedback", description: error.localizedDescription, dismissed: nil)
         }
 
     }
@@ -235,33 +239,34 @@ extension ComposeViewController: UINavigationControllerDelegate, UIImagePickerCo
     }
 
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-        picker.dismiss(animated: true, completion: nil)
-        guard let asset = info[.phAsset] as? PHAsset else { return }
+        picker.dismiss(animated: true, completion: {
+            guard let asset = info[.phAsset] as? PHAsset else { return }
 
-        var thumbnail = UIImage()
-        let options = PHImageRequestOptions()
-        options.isSynchronous = true
-        let sem = DispatchSemaphore(value: 0)
-        PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: 210, height: 210), contentMode: .aspectFill, options: options) { (image, _) in
-            thumbnail = image ?? thumbnail
-            sem.signal()
-        }
-        sem.wait()
+            var thumbnail = UIImage()
+            let options = PHImageRequestOptions()
+            options.isSynchronous = true
+            let sem = DispatchSemaphore(value: 0)
+            PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: 210, height: 210), contentMode: .aspectFill, options: options) { (image, _) in
+                thumbnail = image ?? thumbnail
+                sem.signal()
+            }
+            sem.wait()
 
-        if let imageUrl = info[.imageURL] as? URL,
-            let attachment = Attachment(type: .image, url: imageUrl, image: thumbnail) {
-            addAttachment(attachment)
-        } else if let videoUrl = info[.mediaURL] as? URL,
-            let attachment = Attachment(type: .movie, url: videoUrl, image: thumbnail) {
-            addAttachment(attachment)
-        } else {
-            // TODO: Handle error
-        }
+            if let imageUrl = info[.imageURL] as? URL,
+                let attachment = Attachment(type: .image, url: imageUrl, image: thumbnail) {
+                self.addAttachment(attachment)
+            } else if let videoUrl = info[.mediaURL] as? URL,
+                let attachment = Attachment(type: .movie, url: videoUrl, image: thumbnail) {
+                self.addAttachment(attachment)
+            } else {
+                // TODO: Handle error
+            }
+        })
     }
 
     func addAttachment(_ attachment: Attachment) {
         guard attachment.size + currentAttachmentsSize() < maxAttachmentsSize else {
-            // TODO: Max attachment size reached
+            self.presentAlert(title: "25MB Exceeded", description: "Attachements cannot exceed 25MB", dismissed: nil)
             return
         }
         attachments.append(attachment)

@@ -15,5 +15,14 @@ enum SendEmailResponseError: Int, Error {
     init(statusCode: Int) {
         self = SendEmailResponseError(rawValue: statusCode) ?? .unknown
     }
+
+    var localizedDescription: String {
+        switch self {
+        case .badRequest, .unauthorized, .forbidden, .unknown:
+            return "Please try again or contact us at \(SupportCenter.sendgrid?.configuration.supportEmail ?? "---")"
+        case .payloadTooLarge:
+            return "Attachment size too large"
+        }
+    }
 }
 
