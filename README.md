@@ -1,7 +1,7 @@
 # SupportCenter
 
 <p align="center">
-  <img width="650" height="150" src="./Docs/Assets/Header.png">
+  <img src="./Docs/Assets/Header.png">
 </p>
 
 <p align="center">
