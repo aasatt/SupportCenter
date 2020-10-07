@@ -239,25 +239,43 @@ extension ComposeViewController: UINavigationControllerDelegate, UIImagePickerCo
     }
 
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-        picker.dismiss(animated: true, completion: {
-            guard let asset = info[.phAsset] as? PHAsset else { return }
-
-            var thumbnail = UIImage()
-            let options = PHImageRequestOptions()
-            options.isSynchronous = true
+        picker.dismiss(animated: true, completion: { [weak self] in
+            // get a thumbnail if we can
+            var thumbnail = UIImage(systemName: "paperclip") ?? UIImage()
             let sem = DispatchSemaphore(value: 0)
-            PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: 210, height: 210), contentMode: .aspectFill, options: options) { (image, _) in
-                thumbnail = image ?? thumbnail
+            if let asset = info[.phAsset] as? PHAsset {
+                DispatchQueue.global(qos: .utility).async {
+                    let options = PHImageRequestOptions()
+                    options.isNetworkAccessAllowed = true
+                    let loadingAlert = ProgressAlert(title: "Loading Attachment", message: nil, preferredStyle: .alert)
+                    PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: 210, height: 210), contentMode: .aspectFill, options: options) { (image, _) in
+                        thumbnail = image ?? thumbnail
+                        sem.signal()
+                        DispatchQueue.main.async {
+                            loadingAlert.dismiss(animated: true, completion: nil)
+                        }
+                    }
+                }
+            } else if let image = info[.editedImage] as? UIImage ?? info[.originalImage] as? UIImage {
+                thumbnail = image
+                sem.signal()
+            } else if let imageUrl = info[.imageURL] as? URL, let image = UIImage(contentsOfFile: imageUrl.path) {
+                thumbnail = image
+                sem.signal()
+            } else if let mediaUrl = info[.mediaURL] as? URL, let image = self?.previewImageForLocalVideo(at: mediaUrl) {
+                thumbnail = image
+                sem.signal()
+            } else {
                 sem.signal()
             }
-            sem.wait()
-
+            _ = sem.wait(timeout: .now() + 10.0)
+            // get the attachment data
             if let imageUrl = info[.imageURL] as? URL,
                 let attachment = Attachment(type: .image, url: imageUrl, image: thumbnail) {
-                self.addAttachment(attachment)
+                self?.addAttachment(attachment)
             } else if let videoUrl = info[.mediaURL] as? URL,
                 let attachment = Attachment(type: .movie, url: videoUrl, image: thumbnail) {
-                self.addAttachment(attachment)
+                self?.addAttachment(attachment)
             } else {
                 // TODO: Handle error
             }
@@ -276,6 +294,23 @@ extension ComposeViewController: UINavigationControllerDelegate, UIImagePickerCo
     func currentAttachmentsSize() -> Int {
         return attachments.map{ $0.size }.reduce(0, +)
     }
+
+    private func previewImageForLocalVideo(at url: URL) -> UIImage? {
+        let asset = AVAsset(url: url)
+        let imageGenerator = AVAssetImageGenerator(asset: asset)
+        imageGenerator.appliesPreferredTrackTransform = true
+
+        var time = asset.duration
+        time.value = min(time.value, 2)
+
+        do {
+            let imageRef = try imageGenerator.copyCGImage(at: time, actualTime: nil)
+            return UIImage(cgImage: imageRef)
+        } catch {
+            return nil
+        }
+    }
+
 
 }
 

@@ -84,7 +84,11 @@ class ReportOptionView: UIView {
         desciptionLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor).isActive = true
         desciptionLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4.0).isActive = true
         desciptionLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12.0).isActive = true
+    }
 
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        iconImageView.tintColor = window?.tintColor ?? tintColor
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
