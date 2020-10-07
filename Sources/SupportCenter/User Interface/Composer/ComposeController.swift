@@ -240,18 +240,25 @@ extension ComposeViewController: UINavigationControllerDelegate, UIImagePickerCo
 
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
         picker.dismiss(animated: true, completion: {
-            guard let asset = info[.phAsset] as? PHAsset else { return }
-
+            // get a thumbnail if we can
             var thumbnail = UIImage()
-            let options = PHImageRequestOptions()
-            options.isSynchronous = true
             let sem = DispatchSemaphore(value: 0)
-            PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: 210, height: 210), contentMode: .aspectFill, options: options) { (image, _) in
-                thumbnail = image ?? thumbnail
+            if let asset = info[.phAsset] as? PHAsset {
+                let options = PHImageRequestOptions()
+                options.isSynchronous = true
+                PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: 210, height: 210), contentMode: .aspectFill, options: options) { (image, _) in
+                    thumbnail = image ?? thumbnail
+                    sem.signal()
+                }
+            } else if let image = info[.editedImage] as? UIImage ?? info[.originalImage] as? UIImage {
+                thumbnail = image
+                sem.signal()
+            } else if let imageUrl = info[.imageURL] as? URL, let image = UIImage(contentsOfFile: imageUrl.path) {
+                thumbnail = image
                 sem.signal()
             }
             sem.wait()
-
+            // get the attachment data
             if let imageUrl = info[.imageURL] as? URL,
                 let attachment = Attachment(type: .image, url: imageUrl, image: thumbnail) {
                 self.addAttachment(attachment)
