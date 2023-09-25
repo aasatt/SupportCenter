@@ -20,7 +20,7 @@ SupportCenter is the indie developer's solution to in app support. It provides a
 * [X] Image and video attachments
 * [X] Custom support options
 * [X] Dark/Light Interface
-* [ ] SwiftUI Support
+* [x] SwiftUI Support
 * [ ] Localization
 
 
@@ -76,9 +76,71 @@ SupportCenter.present(from: self)
 ```
 
 **SwiftUI**
+
+Easily present from SwiftUI via a wrapping `UIViewControllerRepresentable` view.
+
 ```swift
-// TODO: SwiftUI code
+struct SupportView: UIViewControllerRepresentable {
+    @Binding var presentingSupport: Bool
+
+    func makeUIViewController(context: Context) -> some WrappingViewController {
+        let controller = WrappingViewController()
+        controller.onDismiss = {
+            presentingSupport = false
+        }
+        
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIViewControllerType, context: Context) {
+        if presentingSupport {
+            uiViewController.present()
+        }
+    }
+}
+
+class WrappingViewController: UIViewController, SupportCenterViewControllerDelegate {
+    var onDismiss: (() -> Void)?
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        present()
+    }
+
+    func present() {
+        SupportCenter.present(from: self, delegate: self)
+    }
+
+    func supportCenterDidDismiss() {
+        onDismiss?()
+    }
+}
 ```
+
+Then put you're view's content and the support view in a `ZStack` and show the support view based on a `presentingSupport` `State` variable.
+
+```swift
+struct DemoView: View {
+    @State var presentingSupport = false
+
+    var body: some View {
+        ZStack {
+            Button {
+                presentingSupport = true
+            } label: {
+                Text("Support")
+            }
+
+            if presentingSupport {
+                SupportView(presentingSupport: $presentingSupport)
+            }
+        }
+    }
+}
+
+```
+
+
 
 ## Advanced Features
 
