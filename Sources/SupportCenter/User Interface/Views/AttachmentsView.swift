@@ -12,7 +12,7 @@ protocol AttachmentsViewDelegate: AttachmentItemDelegate {
     func didSelectAddItem()
 }
 
-protocol AttachmentItemDelegate: class {
+protocol AttachmentItemDelegate: AnyObject {
     func removeAttachment(attachment: Attachment)
 }
 

@@ -8,7 +8,7 @@
 import Foundation
 import UIKit
 
-struct Metadata: Codable {
+struct Metadata: Encodable {
 
     var appVersion: String = ""
     let os: String = "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"

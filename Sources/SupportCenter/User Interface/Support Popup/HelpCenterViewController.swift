@@ -8,7 +8,12 @@
 import Foundation
 import UIKit
 
+public protocol SupportCenterViewControllerDelegate: AnyObject {
+    func supportCenterDidDismiss()
+}
+
 class SupportCenterViewController: UIViewController, SupportCenterHelpContainerViewDelegate {
+    weak var delegate: SupportCenterViewControllerDelegate?
 
     let options: [ReportOption]
 
@@ -121,6 +126,7 @@ class SupportCenterViewController: UIViewController, SupportCenterHelpContainerV
             guard $0 else { return }
             self?.dismiss(animated: false, completion: {
                 completion?()
+                self?.delegate?.supportCenterDidDismiss()
             })
         })
     }

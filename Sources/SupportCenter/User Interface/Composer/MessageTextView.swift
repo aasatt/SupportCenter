@@ -27,7 +27,7 @@ import UIKit
     @objc optional func textWasCleared()
 }
 
-protocol MessageTextViewMentionDelegate: class {
+protocol MessageTextViewMentionDelegate: AnyObject {
     func shouldHighlightForMention(text: String) -> Bool
     func didHighlightMentions(_ patterns: [String])
     func attributesForNormalText() -> [NSAttributedString.Key: Any]
@@ -340,8 +340,6 @@ class MessageTextView: UITextView {
 
 typealias InputFieldTypingObserver = NSObject & InputFieldTypingDelegate
 
-protocol InputFieldTypingDelegate: class {
-    
+protocol InputFieldTypingDelegate: AnyObject {
     func recieveInputFieldTypingStatusUpdate(_ isTyping: Bool)
-    
 }
