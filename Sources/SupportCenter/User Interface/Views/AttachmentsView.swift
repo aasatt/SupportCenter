@@ -12,6 +12,7 @@ protocol AttachmentsViewDelegate: AttachmentItemDelegate {
     func didSelectAddItem()
 }
 
+@MainActor
 protocol AttachmentItemDelegate: AnyObject {
     func removeAttachment(attachment: Attachment)
 }

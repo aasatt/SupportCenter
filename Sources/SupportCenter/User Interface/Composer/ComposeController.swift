@@ -171,9 +171,11 @@ class ComposeViewController: UIViewController, AttachmentsViewDelegate {
         let loadingAlert = ProgressAlert(title: "Sending", message: nil, preferredStyle: .alert)
         present(loadingAlert, animated: true, completion: nil)
         SupportCenter.sendgrid?.sendSupportEmail(ofType: option, senderEmail: senderEmail, message: content, attachments: attachments, completion: { [weak self] (result) in
-            loadingAlert.dismiss(animated: true, completion: {
-                self?.handleSendResult(result: result, sender: sender)
-            })
+            Task { @MainActor in
+                loadingAlert.dismiss(animated: true, completion: {
+                    self?.handleSendResult(result: result, sender: sender)
+                })
+            }
         })
     }
 
@@ -244,7 +246,7 @@ extension ComposeViewController: UINavigationControllerDelegate, UIImagePickerCo
             var thumbnail = UIImage(systemName: "paperclip") ?? UIImage()
             let sem = DispatchSemaphore(value: 0)
             if let asset = info[.phAsset] as? PHAsset {
-                DispatchQueue.global(qos: .utility).async {
+                Task(priority: .utility) {
                     let options = PHImageRequestOptions()
                     options.isNetworkAccessAllowed = true
                     let loadingAlert = ProgressAlert(title: "Loading Attachment", message: nil, preferredStyle: .alert)
