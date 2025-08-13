@@ -11,13 +11,14 @@ import UIKit
 struct Metadata: Encodable {
 
     var appVersion: String = ""
-    let os: String = "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
-    let device = UIDevice.modelName
+    let os: String
+    let device: String
     let presentingController: String
     let locale = Locale.current.identifier
     let bundleId = Bundle.main.bundleIdentifier
     let languages = Locale.preferredLanguages.joined(separator: ", ")
 
+    @MainActor
     init(controller: UIViewController) {
         if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
             appVersion.append(version)
@@ -25,11 +26,12 @@ struct Metadata: Encodable {
         if let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
             appVersion.append(" (\(build))")
         }
+        os = "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
+        device = UIDevice.modelName
         let controllerName = String(describing: controller)
         let trimmedName = controllerName.trimmingCharacters(in: CharacterSet(charactersIn: "<>")).components(separatedBy: CharacterSet(charactersIn: ":")).first
         presentingController = trimmedName ?? controllerName
     }
-
 }
 
 import UIKit

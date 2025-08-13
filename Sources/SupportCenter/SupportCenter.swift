@@ -10,7 +10,7 @@ import UIKit
 
 public struct SupportCenter {
 
-    static var sendgrid: Sendgrid?
+    nonisolated(unsafe) static var sendgrid: Sendgrid?
 
     /// Set the SupportCenter configurations
     /// - Parameters:
@@ -24,11 +24,13 @@ public struct SupportCenter {
 
     /// Present the support controller on your view controller
     /// - Parameter controller: Controller to present the support controller on
+    @MainActor
     public static func present(from controller: UIViewController, reportOptions: [ReportOption]? = nil, delegate: SupportCenterViewControllerDelegate? = nil) {
         let supportController = SupportCenter.controller(from: controller, reportOptions: reportOptions, delegate: delegate)
         controller.present(supportController, animated: false, completion: nil)
     }
 
+    @MainActor
     public static func controller(from controller: UIViewController, reportOptions: [ReportOption]? = nil, delegate: SupportCenterViewControllerDelegate? = nil) -> UIViewController {
         guard sendgrid != nil else {
             assertionFailure("Sendgrid token not set. Please call setSengridToken before presenting this controller.")

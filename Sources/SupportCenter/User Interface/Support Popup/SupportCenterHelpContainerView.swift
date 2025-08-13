@@ -8,6 +8,7 @@
 import Foundation
 import UIKit
 
+@MainActor
 protocol SupportCenterHelpContainerViewDelegate: AnyObject {
     func actionCancel()
     func presentComposeSheet(for option: ReportOption)
