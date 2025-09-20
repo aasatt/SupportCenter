@@ -43,8 +43,8 @@ extension MailServer {
 
 
                     do {
-                        let (_, urlResponse) = try await URLSession.shared.data(for: request)
-                        return smtp2goSendEmailResponse(from: urlResponse)
+                        let response = try await URLSession.shared.data(for: request)
+                        return smtp2goSendEmailResponse(from: response)
                     } catch {
                         throw MailServerError.requestError(error)
                     }
@@ -60,11 +60,19 @@ extension MailServer {
     }
 }
 
-private func smtp2goSendEmailResponse(from response: URLResponse) -> SendEmailResponse {
-    guard let http = response as? HTTPURLResponse else { return .failure(.unknown) }
+private func smtp2goSendEmailResponse(from response: (Data, URLResponse)) -> SendEmailResponse {
+    guard let http = response.1 as? HTTPURLResponse else {
+        return .failure(.unknown)
+    }
+
     switch http.statusCode {
     case 200 ..< 300:
+        guard let data = try? JSONDecoder().decode(SMTP2GOResponse.self, from: response.0).data.didSucceed else {
+            return .failure(.unknown)
+        }
+
         return .success(())
+
     default:
         return .failure(SendEmailResponseError(statusCode: http.statusCode))
     }
