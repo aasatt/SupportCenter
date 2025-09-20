@@ -342,7 +342,7 @@ extension ComposeViewController: UINavigationControllerDelegate, UIImagePickerCo
             options.isSynchronous = false
 
             var didResume = false
-            let requestIdentifier = manager.requestImage(for: asset, targetSize: CGSize(width: 210, height: 210), contentMode: .aspectFill, options: options) { image, info in
+            let _ = manager.requestImage(for: asset, targetSize: CGSize(width: 210, height: 210), contentMode: .aspectFill, options: options) { image, info in
                 if let isDegraded = info?[PHImageResultIsDegradedKey] as? Bool, isDegraded {
                     return
                 }
