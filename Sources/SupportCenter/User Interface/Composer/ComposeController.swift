@@ -177,9 +177,16 @@ class ComposeViewController: UIViewController, AttachmentsViewDelegate {
         present(loadingAlert, animated: true, completion: nil)
 
         Task(priority: .utility) { [weak self, mailServer, option, senderEmail, content, attachments, metadata] in
-            let result = try await mailServer.sendSupportEmail(option, senderEmail, content, attachments, metadata)
+            let result: SendEmailResponse
 
-            Task { @MainActor in
+            do throws(MailServerError) {
+                result = try await mailServer.sendSupportEmail(option, senderEmail, content, attachments, metadata)
+            } catch {
+                // Treat thrown errors as an unknown send failure to surface via existing handler.
+                result = .failure(.unknown)
+            }
+
+            await MainActor.run {
                 loadingAlert.dismiss(animated: true, completion: {
                     self?.handleSendResult(result: result, sender: sender)
                 })
