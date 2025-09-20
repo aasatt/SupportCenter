@@ -5,15 +5,16 @@
 </p>
 
 <p align="center">
-    <img src="https://img.shields.io/badge/Swift-5.2-Orange">
+    <img src="https://img.shields.io/badge/Swift-6.2-Orange">
     <img src="https://img.shields.io/badge/iOS-13+-blue.svg">
     <img src="https://img.shields.io/badge/Installation-SPM-brightgreen">
     <img src="https://img.shields.io/badge/License-MIT-lightgrey.svg">
 </p>
 
-SupportCenter is the indie developer's solution to in app support. It provides a lightweight UI library that integrates with the [SendGrid API](https://sendgrid.com) so there is no need to need to integrate 3rd party libraries that bloat your app size and expose your users to unwanted tracking.
+SupportCenter is the indie developer's solution to in app support. It provides a lightweight UI library that integrates with modern transactional mail providers so there is no need to integrate heavyweight SDKs that bloat your app size and expose your users to unwanted tracking.
 
 ## Features
+* [X] SMTP2GO integration
 * [X] SendGrid integration
 * [X] Stand-alone UI components
 * [X] Automatic device metadata gathering
@@ -46,24 +47,29 @@ https://github.com/aasatt/SupportCenter.git
 
 ### Configuration
 
-Configure the SDK with your SendGrid API Key, support email and from email.
+Configure the SDK with your preferred mail provider, support email, and from email address. SupportCenter ships with helpers for SMTP2GO (recommended) and SendGrid.
 
 ```swift
-SupportCenter.setup(
-    sendgridToken: <#Sendgrid API Key#>,
+let mailServer = SupportCenter.setup(
+    smtp2goAPIKey: <#SMTP2GO API Key#>,
     supportEmail: <#Support Email#>,
     fromEmail: <#From Email#>
 )
 ```
-**`sendgridToken`**
-Your [SendGrid API Key](https://sendgrid.com/docs/API_Reference/Web_API_v3/API_Keys/index.html#API-Keys).
+Store the returned `MailServer` instance and pass it into the presentation helpers.
+
+**`smtp2goAPIKey`**
+Your [SMTP2GO API Key](https://developers.smtp2go.com/docs/getting-started).
 
 **`supportEmail`**
 The email where you would like support requests to be sent to.
 
 **`fromEmail`**
-This must be a authenticated sender within SendGrid.
-[More information - SendGrid Documentation](https://sendgrid.com/docs/ui/account-and-settings/how-to-set-up-domain-authentication/)
+The verified sender address configured with your mail provider.
+
+> Still using SendGrid? You can create a `MailServer` with `SupportCenter.setup(sendgridToken:supportEmail:fromEmail:)` instead.
+
+SupportCenter targets Swift 6’s strict concurrency model, so keep your mail server reference somewhere that’s safe to access from the main actor (e.g. a property on your view model or coordinator).
 
 ### Presenting SupportCenter
 
@@ -71,7 +77,7 @@ Showing SupportCenter is simple. Be sure you have configured SupportCenter befor
 
 **UIKit**
 ```swift
-SupportCenter.present(from: self)
+SupportCenter.present(with: mailServer, from: self)
 // Note: self is the current UIViewController
 ```
 
@@ -82,25 +88,36 @@ Easily present from SwiftUI via a wrapping `UIViewControllerRepresentable` view.
 ```swift
 struct SupportView: UIViewControllerRepresentable {
     @Binding var presentingSupport: Bool
+    let mailServer: MailServer
 
-    func makeUIViewController(context: Context) -> some WrappingViewController {
-        let controller = WrappingViewController()
+    func makeUIViewController(context: Context) -> WrappingViewController {
+        let controller = WrappingViewController(mailServer: mailServer)
         controller.onDismiss = {
             presentingSupport = false
         }
-        
         return controller
     }
-    
-    func updateUIViewController(_ uiViewController: UIViewControllerType, context: Context) {
+
+    func updateUIViewController(_ uiViewController: WrappingViewController, context: Context) {
         if presentingSupport {
             uiViewController.present()
         }
     }
 }
 
-class WrappingViewController: UIViewController, SupportCenterViewControllerDelegate {
+final class WrappingViewController: UIViewController, SupportCenterViewControllerDelegate {
+    private let mailServer: MailServer
     var onDismiss: (() -> Void)?
+
+    init(mailServer: MailServer) {
+        self.mailServer = mailServer
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
@@ -108,7 +125,8 @@ class WrappingViewController: UIViewController, SupportCenterViewControllerDeleg
     }
 
     func present() {
-        SupportCenter.present(from: self, delegate: self)
+        // metadata is captured automatically by SupportCenter
+        SupportCenter.present(with: mailServer, from: self, delegate: self)
     }
 
     func supportCenterDidDismiss() {
@@ -117,22 +135,21 @@ class WrappingViewController: UIViewController, SupportCenterViewControllerDeleg
 }
 ```
 
-Then put you're view's content and the support view in a `ZStack` and show the support view based on a `presentingSupport` `State` variable.
+Then put your view's content and the support view in a `ZStack` and show the support view based on a `presentingSupport` state variable.
 
 ```swift
 struct DemoView: View {
-    @State var presentingSupport = false
+    @State private var presentingSupport = false
+    let mailServer: MailServer
 
     var body: some View {
         ZStack {
-            Button {
+            Button("Support") {
                 presentingSupport = true
-            } label: {
-                Text("Support")
             }
 
             if presentingSupport {
-                SupportView(presentingSupport: $presentingSupport)
+                SupportView(presentingSupport: $presentingSupport, mailServer: mailServer)
             }
         }
     }
@@ -198,5 +215,5 @@ enum MySupportOption: ReportOption, CaseIterable {
 
 Now just present SupportCenter
 ```swift
-SupportCenter.present(from: self, reportOptions: MySupportOption.allCases)
+SupportCenter.present(with: mailServer, from: self, reportOptions: MySupportOption.allCases)
 ```

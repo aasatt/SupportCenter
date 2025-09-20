@@ -67,7 +67,7 @@ private func smtp2goSendEmailResponse(from response: (Data, URLResponse)) -> Sen
 
     switch http.statusCode {
     case 200 ..< 300:
-        guard let data = try? JSONDecoder().decode(SMTP2GOResponse.self, from: response.0).data.didSucceed else {
+        guard (try? JSONDecoder().decode(SMTP2GOResponse.self, from: response.0))?.data.didSucceed == true else {
             return .failure(.unknown)
         }
 
