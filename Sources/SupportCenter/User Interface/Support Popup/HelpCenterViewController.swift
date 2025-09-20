@@ -16,6 +16,8 @@ class SupportCenterViewController: UIViewController, SupportCenterHelpContainerV
     weak var delegate: SupportCenterViewControllerDelegate?
 
     let options: [ReportOption]
+    let metadata: Metadata?
+    let mailServer: MailServer
 
     lazy var blurView: UIVisualEffectView = {
         let v = UIVisualEffectView()
@@ -51,13 +53,15 @@ class SupportCenterViewController: UIViewController, SupportCenterHelpContainerV
         return [leading, trailing, width]
     }()
 
-    convenience init(options: [ReportOption]) {
-        self.init(nibName: nil, bundle: nil, options: options)
+    convenience init(options: [ReportOption], metadata: Metadata?, mailServer: MailServer) {
+        self.init(nibName: nil, bundle: nil, options: options, metadata: metadata, mailServer: mailServer)
         modalPresentationStyle = .overFullScreen
     }
 
-    init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?, options: [ReportOption]) {
+    init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?, options: [ReportOption], metadata: Metadata?, mailServer: MailServer) {
         self.options = options
+        self.metadata = metadata
+        self.mailServer = mailServer
         super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
     }
 
@@ -133,9 +137,8 @@ class SupportCenterViewController: UIViewController, SupportCenterHelpContainerV
 
     func presentComposeSheet(for option: ReportOption) {
         guard let controller = presentingViewController else { return }
-        hideAnimated {
-            controller.present(ComposeNavigationController(option: option), animated: true, completion: nil)
+        hideAnimated { [metadata, mailServer] in
+            controller.present(ComposeNavigationController(option: option, metadata: metadata, mailServer: mailServer), animated: true, completion: nil)
         }
     }
-
 }

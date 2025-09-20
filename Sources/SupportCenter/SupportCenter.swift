@@ -8,38 +8,46 @@
 import Foundation
 import UIKit
 
-public struct SupportCenter {
-
-    nonisolated(unsafe) static var sendgrid: Sendgrid?
+public enum SupportCenter {
 
     /// Set the SupportCenter configurations
     /// - Parameters:
     ///   - sendgridToken: Your API token used to authenticate with Sendgrid
     ///   - supportEmail: The email address you would like support emails to be sent to
     ///   - fromEmail: The email address that you have verified as a sender in Sendgrid.
-    public static func setup(sendgridToken: String, supportEmail: String, fromEmail: String) {
-        let configs = Configuration(sendgridToken: sendgridToken, supportEmail: supportEmail, fromEmail: fromEmail)
-        sendgrid = Sendgrid(configuration: configs)
+    public static func setup(sendgridToken: String, supportEmail: String, fromEmail: String) -> MailServer {
+        let configs = Configuration(
+            apiToken: sendgridToken,
+            supportEmail: supportEmail,
+            fromEmail: fromEmail
+        )
+
+        return .sendgrid(configuration: configs)
+    }
+
+    public static func setup(smtp2goAPIKey: String, supportEmail: String, fromEmail: String) -> MailServer {
+        let configs = Configuration(
+            apiToken: smtp2goAPIKey,
+            supportEmail: supportEmail,
+            fromEmail: fromEmail
+        )
+
+        return .stmp2go(configuration: configs)
     }
 
     /// Present the support controller on your view controller
     /// - Parameter controller: Controller to present the support controller on
     @MainActor
-    public static func present(from controller: UIViewController, reportOptions: [ReportOption]? = nil, delegate: SupportCenterViewControllerDelegate? = nil) {
-        let supportController = SupportCenter.controller(from: controller, reportOptions: reportOptions, delegate: delegate)
+    public static func present(with mailServer: MailServer, from controller: UIViewController, reportOptions: [ReportOption]? = nil, delegate: SupportCenterViewControllerDelegate? = nil) {
+        let supportController = SupportCenter.controller(with: mailServer, from: controller, reportOptions: reportOptions, delegate: delegate)
         controller.present(supportController, animated: false, completion: nil)
     }
 
     @MainActor
-    public static func controller(from controller: UIViewController, reportOptions: [ReportOption]? = nil, delegate: SupportCenterViewControllerDelegate? = nil) -> UIViewController {
-        guard sendgrid != nil else {
-            assertionFailure("Sendgrid token not set. Please call setSengridToken before presenting this controller.")
-            return UIViewController()
-        }
+    public static func controller(with mailServer: MailServer, from controller: UIViewController, reportOptions: [ReportOption]? = nil, delegate: SupportCenterViewControllerDelegate? = nil) -> UIViewController {
+        let metadata = Metadata(controller: controller)
 
-        sendgrid?.metadata = Metadata(controller: controller)
-
-        let controller = SupportCenterViewController(options: reportOptions ?? DefaultReportOption.allCases)
+        let controller = SupportCenterViewController(options: reportOptions ?? DefaultReportOption.allCases, metadata: metadata, mailServer: mailServer)
         controller.delegate = delegate
 
         return controller

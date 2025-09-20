@@ -7,52 +7,53 @@
 
 import Foundation
 
-class Sendgrid: NSObject {
+extension MailServer {
+    static func sendgrid(configuration: Configuration) -> Self {
+        let sendEmailUrl = URL(string: "https://api.sendgrid.com/v3/mail/send")!
+        let sendEmailHTTPMethod = "POST"
+        let authorizationHeaderKey = "Authorization"
+        let contentTypeHeader: (key: String, value: String) = ("Content-Type", "application/json")
 
-    let configuration: Configuration
-    var metadata: Metadata?
+        lazy var jsonEncoder: JSONEncoder = {
+            let e = JSONEncoder()
+            e.keyEncodingStrategy = .convertToSnakeCase
+            return e
+        }()
 
-    let sendEmailUrl = URL(string: "https://api.sendgrid.com/v3/mail/send")!
-    let sendEmailHTTPMethod = "POST"
-    let authorizationHeaderKey = "Authorization"
-    let contentTypeHeader: (key: String, value: String) = ("Content-Type", "application/json")
+        return .init(
+            sendSupportEmail: { [jsonEncoder] type, senderEmail, message, attachments, metadata throws(MailServerError) in
+                let content = [SendgridEmailBody.Content(value: createSupportHTML(with: message, metadata: metadata), type: .html)]
+                let emailAttachments = attachments.map { $0.getSengridAttachment() }
+                let emailBody = SendgridEmailBody(to: configuration.supportEmail, from: configuration.fromEmail, replyTo: senderEmail, subject: type.emailSubject, content: content, attachments: emailAttachments)
 
-    lazy var jsonEncoder: JSONEncoder = {
-        let e = JSONEncoder()
-        e.keyEncodingStrategy = .convertToSnakeCase
-        return e
-    }()
+                do {
+                    let body = try jsonEncoder.encode(emailBody)
 
-    init(configuration: Configuration) {
-        self.configuration = configuration
-        super.init()
-    }
+                    var request = URLRequest(url: sendEmailUrl)
+                    request.httpMethod = sendEmailHTTPMethod
+                    request.httpBody = body
+                    request.setValue(contentTypeHeader.value, forHTTPHeaderField: contentTypeHeader.key)
+                    request.setValue(configuration.sendgridAuthorizationHeaderValue, forHTTPHeaderField: authorizationHeaderKey)
 
-    func sendSupportEmail(ofType type: ReportOption, senderEmail: String, message: String, attachments: [Attachment], completion: @Sendable @escaping (_: SendEmailResponse) -> Void) {
-        let content = [SendgridEmailBody.Content(value: createSupportHTML(with: message, metadata: metadata), type: .html)]
-        let emailAttachments = attachments.map { $0.getSengridAttachment() }
-        let emailBody = SendgridEmailBody(to: configuration.supportEmail, from: configuration.fromEmail, replyTo: senderEmail, subject: type.emailSubject, content: content, attachments: emailAttachments)
-        guard let body = try? jsonEncoder.encode(emailBody) else {
-            // TODO: Could not create body
-            return
-        }
-        var request = URLRequest(url: sendEmailUrl)
-        request.httpMethod = sendEmailHTTPMethod
-        request.httpBody = body
-        request.setValue(contentTypeHeader.value, forHTTPHeaderField: contentTypeHeader.key)
-        request.setValue(configuration.authorizationHeaderValue, forHTTPHeaderField: authorizationHeaderKey)
-        URLSession.shared.dataTask(with: request) { (data, response, error) in
-            let result = response?.getSendgridResponse() ?? .failure(.unknown)
-            DispatchQueue.main.async {
-                completion(result)
+                    do {
+                        let response = try await URLSession.shared.data(for: request)
+                        return response.1.getSendgridResponse()
+                    } catch {
+                        throw MailServerError.requestError(error)
+                    }
+                } catch let error as MailServerError {
+                    throw error
+                } catch {
+                    throw .failedToEncodeEmailBody(error)
+                }
+            }, supportEmail: {
+                configuration.supportEmail
             }
-        }.resume()
+        )
     }
-
 }
 
 private extension URLResponse {
-
     func getSendgridResponse() -> SendEmailResponse {
         guard let response = self as? HTTPURLResponse else { return .failure(.unknown) }
         switch response.statusCode {
@@ -62,5 +63,4 @@ private extension URLResponse {
             return .failure(SendEmailResponseError(statusCode: response.statusCode))
         }
     }
-
 }

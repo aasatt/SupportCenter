@@ -12,8 +12,8 @@ import Photos
 
 class ComposeNavigationController: UINavigationController {
 
-    convenience init(option: ReportOption) {
-        self.init(rootViewController: ComposeViewController(option: option))
+    convenience init(option: ReportOption, metadata: Metadata?, mailServer: MailServer) {
+        self.init(rootViewController: ComposeViewController(option: option, metadata: metadata, mailServer: mailServer))
     }
 
     override init(rootViewController: UIViewController) {
@@ -35,8 +35,9 @@ class ComposeNavigationController: UINavigationController {
 }
 
 class ComposeViewController: UIViewController, AttachmentsViewDelegate {
-
     let option: ReportOption
+    let metadata: Metadata?
+    let mailServer: MailServer
     let maxAttachmentsSize = 25_000_000
 
     var attachments: [Attachment] = []
@@ -89,12 +90,16 @@ class ComposeViewController: UIViewController, AttachmentsViewDelegate {
         return v
     }()
 
-    convenience init(option: ReportOption) {
-        self.init(nibName: nil, bundle: nil, option: option)
+    private var pickerLoadingOverlay: UIView?
+
+    convenience init(option: ReportOption, metadata: Metadata?, mailServer: MailServer) {
+        self.init(nibName: nil, bundle: nil, option: option, metadata: metadata, mailServer: mailServer)
     }
 
-    init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?, option: ReportOption) {
+    init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?, option: ReportOption, metadata: Metadata?, mailServer: MailServer) {
         self.option = option
+        self.metadata = metadata
+        self.mailServer = mailServer
         super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
     }
 
@@ -170,13 +175,16 @@ class ComposeViewController: UIViewController, AttachmentsViewDelegate {
         sender.isEnabled = false
         let loadingAlert = ProgressAlert(title: "Sending", message: nil, preferredStyle: .alert)
         present(loadingAlert, animated: true, completion: nil)
-        SupportCenter.sendgrid?.sendSupportEmail(ofType: option, senderEmail: senderEmail, message: content, attachments: attachments, completion: { [weak self] (result) in
+
+        Task(priority: .utility) { [weak self, mailServer, option, senderEmail, content, attachments, metadata] in
+            let result = try await mailServer.sendSupportEmail(option, senderEmail, content, attachments, metadata)
+
             Task { @MainActor in
                 loadingAlert.dismiss(animated: true, completion: {
                     self?.handleSendResult(result: result, sender: sender)
                 })
             }
-        })
+        }
     }
 
     func handleSendResult(result: SendEmailResponse, sender: UIBarButtonItem) {
@@ -191,7 +199,7 @@ class ComposeViewController: UIViewController, AttachmentsViewDelegate {
         case .failure(let error):
             print(error)
             sender.isEnabled = true
-            self.presentAlert(title: "Failed to Send Feedback", description: error.localizedDescription, dismissed: nil)
+            self.presentAlert(title: "Failed to Send Feedback", description: error.errorMessage(supportEmail: mailServer.supportEmail()), dismissed: nil)
         }
 
     }
@@ -226,62 +234,170 @@ class ComposeViewController: UIViewController, AttachmentsViewDelegate {
 
 }
 
+@MainActor
 extension ComposeViewController: UINavigationControllerDelegate, UIImagePickerControllerDelegate {
 
     func presentImagePicker() {
+        showPickerLoadingIndicator()
         let picker = UIImagePickerController()
         picker.delegate = self
         picker.sourceType = .photoLibrary
         picker.mediaTypes = [kUTTypeImage as String, kUTTypeMovie as String]
-        present(picker, animated: true, completion: nil)
+        present(picker, animated: true) { [weak self] in
+            self?.hidePickerLoadingIndicator()
+        }
     }
 
     func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        hidePickerLoadingIndicator()
         picker.dismiss(animated: true, completion: nil)
     }
 
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-        picker.dismiss(animated: true, completion: { [weak self] in
-            // get a thumbnail if we can
-            var thumbnail = UIImage(systemName: "paperclip") ?? UIImage()
-            let sem = DispatchSemaphore(value: 0)
-            if let asset = info[.phAsset] as? PHAsset {
-                Task(priority: .utility) {
-                    let options = PHImageRequestOptions()
-                    options.isNetworkAccessAllowed = true
-                    let loadingAlert = ProgressAlert(title: "Loading Attachment", message: nil, preferredStyle: .alert)
-                    PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: 210, height: 210), contentMode: .aspectFill, options: options) { (image, _) in
-                        thumbnail = image ?? thumbnail
-                        sem.signal()
-                        DispatchQueue.main.async {
-                            loadingAlert.dismiss(animated: true, completion: nil)
-                        }
-                    }
+        hidePickerLoadingIndicator()
+        picker.dismiss(animated: true) { [weak self] in
+            self?.handlePickerSelection(info)
+        }
+    }
+
+    @MainActor
+    private func handlePickerSelection(_ info: [UIImagePickerController.InfoKey: Any]) {
+        let imageURL = info[.imageURL] as? URL
+        let mediaURL = info[.mediaURL] as? URL
+
+        if let asset = info[.phAsset] as? PHAsset {
+            Task { @MainActor [weak self, identifier = asset.localIdentifier, imageURL, mediaURL] in
+                guard let self else { return }
+                await self.loadAssetThumbnailAndAdd(identifier: identifier, imageURL: imageURL, mediaURL: mediaURL)
+            }
+            return
+        }
+
+        if let image = info[.editedImage] as? UIImage ?? info[.originalImage] as? UIImage {
+            handleAttachmentCreationResult(imageURL: imageURL, mediaURL: mediaURL, thumbnail: image)
+            return
+        }
+
+        if let imageURL {
+            let thumbnail = UIImage(contentsOfFile: imageURL.path) ?? defaultAttachmentThumbnail
+            handleAttachmentCreationResult(imageURL: imageURL, mediaURL: mediaURL, thumbnail: thumbnail)
+            return
+        }
+
+        if let mediaURL {
+            let thumbnail = previewImageForLocalVideo(at: mediaURL) ?? defaultAttachmentThumbnail
+            handleAttachmentCreationResult(imageURL: imageURL, mediaURL: mediaURL, thumbnail: thumbnail)
+            return
+        }
+
+        presentAttachmentError()
+    }
+
+    @MainActor
+    private func loadAssetThumbnailAndAdd(identifier: String, imageURL: URL?, mediaURL: URL?) async {
+        let loadingAlert = ProgressAlert(title: "Loading Attachment", message: nil, preferredStyle: .alert)
+        present(loadingAlert, animated: true, completion: nil)
+
+        defer {
+            loadingAlert.dismiss(animated: true, completion: nil)
+        }
+
+        let thumbnail = await requestThumbnail(forAssetIdentifier: identifier) ?? defaultAttachmentThumbnail
+        handleAttachmentCreationResult(imageURL: imageURL, mediaURL: mediaURL, thumbnail: thumbnail)
+    }
+
+    @MainActor
+    private func handleAttachmentCreationResult(imageURL: URL?, mediaURL: URL?, thumbnail: UIImage) {
+        if let imageURL, let attachment = Attachment(type: .image, url: imageURL, image: thumbnail) {
+            addAttachment(attachment)
+            return
+        }
+
+        if let mediaURL, let attachment = Attachment(type: .movie, url: mediaURL, image: thumbnail) {
+            addAttachment(attachment)
+            return
+        }
+
+        presentAttachmentError()
+    }
+
+    @MainActor
+    private func requestThumbnail(forAssetIdentifier identifier: String) async -> UIImage? {
+        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
+        guard let asset = fetchResult.firstObject else { return nil }
+
+        return await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
+            let manager = PHImageManager.default()
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
+            options.resizeMode = .fast
+            options.isSynchronous = false
+
+            var didResume = false
+            let requestIdentifier = manager.requestImage(for: asset, targetSize: CGSize(width: 210, height: 210), contentMode: .aspectFill, options: options) { image, info in
+                if let isDegraded = info?[PHImageResultIsDegradedKey] as? Bool, isDegraded {
+                    return
                 }
-            } else if let image = info[.editedImage] as? UIImage ?? info[.originalImage] as? UIImage {
-                thumbnail = image
-                sem.signal()
-            } else if let imageUrl = info[.imageURL] as? URL, let image = UIImage(contentsOfFile: imageUrl.path) {
-                thumbnail = image
-                sem.signal()
-            } else if let mediaUrl = info[.mediaURL] as? URL, let image = self?.previewImageForLocalVideo(at: mediaUrl) {
-                thumbnail = image
-                sem.signal()
-            } else {
-                sem.signal()
+
+                guard !didResume else { return }
+                didResume = true
+
+                if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                if info?[PHImageErrorKey] != nil {
+                    continuation.resume(returning: image)
+                    return
+                }
+
+                continuation.resume(returning: image)
             }
-            _ = sem.wait(timeout: .now() + 10.0)
-            // get the attachment data
-            if let imageUrl = info[.imageURL] as? URL,
-                let attachment = Attachment(type: .image, url: imageUrl, image: thumbnail) {
-                self?.addAttachment(attachment)
-            } else if let videoUrl = info[.mediaURL] as? URL,
-                let attachment = Attachment(type: .movie, url: videoUrl, image: thumbnail) {
-                self?.addAttachment(attachment)
-            } else {
-                // TODO: Handle error
-            }
-        })
+
+        }
+    }
+
+    @MainActor
+    private func presentAttachmentError() {
+        presentAlert(title: "Attachment Error", description: "We couldn't load the selected file.", dismissed: nil)
+    }
+
+    private var defaultAttachmentThumbnail: UIImage {
+        UIImage(systemName: "paperclip") ?? UIImage()
+    }
+
+    private func showPickerLoadingIndicator() {
+        guard pickerLoadingOverlay == nil else { return }
+
+        let overlay = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterial))
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+
+        let indicator = UIActivityIndicatorView(style: .large)
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        indicator.startAnimating()
+
+        overlay.contentView.addSubview(indicator)
+        view.addSubview(overlay)
+
+        NSLayoutConstraint.activate([
+            overlay.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            overlay.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            overlay.topAnchor.constraint(equalTo: view.topAnchor),
+            overlay.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            indicator.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+            indicator.centerYAnchor.constraint(equalTo: overlay.centerYAnchor)
+        ])
+
+        pickerLoadingOverlay = overlay
+    }
+
+    private func hidePickerLoadingIndicator() {
+        guard let overlay = pickerLoadingOverlay else { return }
+        overlay.removeFromSuperview()
+        pickerLoadingOverlay = nil
     }
 
     func addAttachment(_ attachment: Attachment) {
