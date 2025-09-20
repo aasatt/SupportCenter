@@ -32,7 +32,7 @@ public enum SupportCenter {
             fromEmail: fromEmail
         )
 
-        return .stmp2go(configuration: configs)
+        return .smtp2go(configuration: configs)
     }
 
     /// Present the support controller on your view controller

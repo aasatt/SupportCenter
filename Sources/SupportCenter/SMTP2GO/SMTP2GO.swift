@@ -8,7 +8,7 @@
 import Foundation
 
 extension MailServer {
-    static func stmp2go(configuration: Configuration) -> MailServer {
+    static func smtp2go(configuration: Configuration) -> MailServer {
         let host = "https://api.smtp2go.com"
 
         lazy var jsonEncoder: JSONEncoder = {
@@ -43,8 +43,8 @@ extension MailServer {
 
 
                     do {
-                        let response = try await URLSession.shared.data(for: request)
-                        return response.1.getSTMP2GOResponse()
+                        let (_, urlResponse) = try await URLSession.shared.data(for: request)
+                        return smtp2goSendEmailResponse(from: urlResponse)
                     } catch {
                         throw MailServerError.requestError(error)
                     }
@@ -60,15 +60,13 @@ extension MailServer {
     }
 }
 
-extension URLResponse {
-    func getSTMP2GOResponse() -> SendEmailResponse {
-        guard let response = self as? HTTPURLResponse else { return .failure(.unknown) }
-        switch response.statusCode {
-        case 200 ..< 300:
-            return .success(Void())
-        default:
-            return .failure(SendEmailResponseError(statusCode: response.statusCode))
-        }
+private func smtp2goSendEmailResponse(from response: URLResponse) -> SendEmailResponse {
+    guard let http = response as? HTTPURLResponse else { return .failure(.unknown) }
+    switch http.statusCode {
+    case 200 ..< 300:
+        return .success(())
+    default:
+        return .failure(SendEmailResponseError(statusCode: http.statusCode))
     }
 }
 
@@ -109,5 +107,15 @@ struct SMTP2GORequestBody: Encodable {
         self.subject = subject
         htmlBody = createSupportHTML(with: message, metadata: metadata)
         self.attachments = attachments?.compactMap { .init(attachment: $0) }
+    }
+}
+
+struct SMTP2GOResponse: Decodable {
+    let data: Data
+
+    struct Data: Decodable {
+        let succeeded: Int
+
+        var didSucceed: Bool { succeeded == 1 }
     }
 }
