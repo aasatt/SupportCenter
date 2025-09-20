@@ -9,12 +9,11 @@ import Foundation
 
 struct Configuration {
 
-    var sendgridToken: String
+    var apiToken: String
     var supportEmail: String
     var fromEmail: String
 
-    var authorizationHeaderValue: String {
-        return "Bearer \(sendgridToken)"
+    var sendgridAuthorizationHeaderValue: String {
+        return "Bearer \(apiToken)"
     }
-
 }
