@@ -33,6 +33,7 @@ extension MailServer {
                     let body = SMTP2GORequestBody(
                         to: configuration.supportEmail,
                         from: configuration.fromEmail,
+                        senderEmail: senderEmail,
                         subject: type.emailSubject,
                         message: message,
                         metadata: metadata,
@@ -101,10 +102,12 @@ struct SMTP2GORequestBody: Encodable {
     let subject: String
     let htmlBody: String
     let attachments: [SMTP2GOAttachment]?
+    let customHeaders: [[String: String]]
 
     init(
         to: String,
         from: String,
+        senderEmail: String,
         subject: String,
         message: String,
         metadata: Metadata?,
@@ -115,6 +118,12 @@ struct SMTP2GORequestBody: Encodable {
         self.subject = subject
         htmlBody = createSupportHTML(with: message, metadata: metadata)
         self.attachments = attachments?.compactMap { .init(attachment: $0) }
+        customHeaders = [
+            [
+                "header": "Reply-To",
+                "value": senderEmail
+            ]
+        ]
     }
 }
 
