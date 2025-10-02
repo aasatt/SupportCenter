@@ -7,6 +7,7 @@
 
 import Foundation
 import UIKit
+import SwiftUI
 
 public enum SupportCenter {
 
@@ -38,14 +39,14 @@ public enum SupportCenter {
     /// Present the support controller on your view controller
     /// - Parameter controller: Controller to present the support controller on
     @MainActor
-    public static func present(with mailServer: MailServer, from controller: UIViewController, reportOptions: [ReportOption]? = nil, delegate: SupportCenterViewControllerDelegate? = nil) {
+    public static func present(with mailServer: MailServer, from controller: UIViewController, presentingViewName: String? = nil, reportOptions: [ReportOption]? = nil, delegate: SupportCenterViewControllerDelegate? = nil) {
         let supportController = SupportCenter.controller(with: mailServer, from: controller, reportOptions: reportOptions, delegate: delegate)
         controller.present(supportController, animated: false, completion: nil)
     }
 
     @MainActor
-    public static func controller(with mailServer: MailServer, from controller: UIViewController, reportOptions: [ReportOption]? = nil, delegate: SupportCenterViewControllerDelegate? = nil) -> UIViewController {
-        let metadata = Metadata(controller: controller)
+    public static func controller(with mailServer: MailServer, from controller: UIViewController? = nil, presentingViewName: String? = nil, reportOptions: [ReportOption]? = nil, delegate: SupportCenterViewControllerDelegate? = nil) -> UIViewController {
+        let metadata = Metadata(controller: controller, viewName: presentingViewName)
 
         let controller = SupportCenterViewController(options: reportOptions ?? DefaultReportOption.allCases, metadata: metadata, mailServer: mailServer)
         controller.delegate = delegate
@@ -53,4 +54,8 @@ public enum SupportCenter {
         return controller
     }
 
+    @MainActor @ViewBuilder
+    public static func button(@ViewBuilder label: @escaping () -> some View) -> some View {
+        SupportButton(label: label)
+    }
 }

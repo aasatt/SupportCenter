@@ -14,7 +14,7 @@ public struct MailServer {
         _ message: String,
         _ attachments: [Attachment],
         _ metadata: Metadata?
-    ) async throws(MailServerError) -> SendEmailResponse
+    ) async throws -> SendEmailResponse
 
     let supportEmail: @Sendable () -> String
 }
