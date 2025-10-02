@@ -19,7 +19,7 @@ extension MailServer {
 
 
         return .init(
-            sendSupportEmail: { [jsonEncoder] type, senderEmail, message, attachments, metadata throws(MailServerError) in
+            sendSupportEmail: { [jsonEncoder] type, senderEmail, message, attachments, metadata in
                 // Body cannot be empty
                 let message = message.isEmpty ? "No content" : message
 
@@ -52,7 +52,7 @@ extension MailServer {
                 } catch let error as MailServerError {
                     throw error
                 } catch {
-                    throw .failedToEncodeEmailBody(error)
+                    throw MailServerError.failedToEncodeEmailBody(error)
                 }
             }, supportEmail: {
                 configuration.supportEmail

@@ -179,7 +179,7 @@ class ComposeViewController: UIViewController, AttachmentsViewDelegate {
         Task(priority: .utility) { [weak self, mailServer, option, senderEmail, content, attachments, metadata] in
             let result: SendEmailResponse
 
-            do throws(MailServerError) {
+            do {
                 result = try await mailServer.sendSupportEmail(option, senderEmail, content, attachments, metadata)
             } catch {
                 // Treat thrown errors as an unknown send failure to surface via existing handler.

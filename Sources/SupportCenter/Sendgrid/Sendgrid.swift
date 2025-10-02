@@ -21,7 +21,7 @@ extension MailServer {
         }()
 
         return .init(
-            sendSupportEmail: { [jsonEncoder] type, senderEmail, message, attachments, metadata throws(MailServerError) in
+            sendSupportEmail: { [jsonEncoder] type, senderEmail, message, attachments, metadata in
                 let content = [SendgridEmailBody.Content(value: createSupportHTML(with: message, metadata: metadata), type: .html)]
                 let emailAttachments = attachments.map { $0.getSengridAttachment() }
                 let emailBody = SendgridEmailBody(to: configuration.supportEmail, from: configuration.fromEmail, replyTo: senderEmail, subject: type.emailSubject, content: content, attachments: emailAttachments)
@@ -44,7 +44,7 @@ extension MailServer {
                 } catch let error as MailServerError {
                     throw error
                 } catch {
-                    throw .failedToEncodeEmailBody(error)
+                    throw MailServerError.failedToEncodeEmailBody(error)
                 }
             }, supportEmail: {
                 configuration.supportEmail

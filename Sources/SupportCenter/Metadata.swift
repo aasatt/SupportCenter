@@ -13,13 +13,14 @@ struct Metadata: Encodable {
     var appVersion: String = ""
     let os: String
     let device: String
-    let presentingController: String
+    let presentingController: String?
+    let presentingView: String?
     let locale = Locale.current.identifier
     let bundleId = Bundle.main.bundleIdentifier
     let languages = Locale.preferredLanguages.joined(separator: ", ")
 
     @MainActor
-    init(controller: UIViewController) {
+    init(controller: UIViewController?, viewName: String?) {
         if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
             appVersion.append(version)
         }
@@ -28,9 +29,20 @@ struct Metadata: Encodable {
         }
         os = "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
         device = UIDevice.modelName
-        let controllerName = String(describing: controller)
-        let trimmedName = controllerName.trimmingCharacters(in: CharacterSet(charactersIn: "<>")).components(separatedBy: CharacterSet(charactersIn: ":")).first
-        presentingController = trimmedName ?? controllerName
+
+        if let controller {
+            let controllerName = String(describing: controller)
+            let trimmedName = controllerName.trimmingCharacters(in: CharacterSet(charactersIn: "<>")).components(separatedBy: CharacterSet(charactersIn: ":")).first
+            presentingController = trimmedName ?? controllerName
+        } else {
+            presentingController = nil
+        }
+
+        if let viewName {
+            presentingView = viewName
+        } else {
+            presentingView = nil
+        }
     }
 }
 
