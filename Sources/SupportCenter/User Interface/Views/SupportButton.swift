@@ -57,7 +57,7 @@ public struct SupportView: UIViewControllerRepresentable {
     }
 }
 
-public final class SupportWrappingViewController: UIViewController, @MainActor SupportCenterViewControllerDelegate {
+public final class SupportWrappingViewController: UIViewController, SupportCenterViewControllerDelegate {
     private let mailServer: MailServer
     fileprivate var presentingViewName: String?
 
