@@ -55,6 +55,7 @@ public enum SupportCenter {
     }
 
     @MainActor @ViewBuilder
+    @available(iOS 18, *)
     public static func button(@ViewBuilder label: @escaping () -> some View) -> some View {
         SupportButton(label: label)
     }
