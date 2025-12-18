@@ -68,20 +68,27 @@ public final class SupportWrappingViewController: UIViewController, SupportCente
         super.init(nibName: nil, bundle: nil)
     }
 
+    public override func loadView() {
+        self.view = UIView()
+        self.view.backgroundColor = .clear
+    }
+
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    public override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
+    public override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
         present()
     }
+
 
     @MainActor
     public func present() {
         // metadata is captured automatically by SupportCenter
-        SupportCenter.present(with: mailServer, from: self, presentingViewName: presentingViewName, delegate: self)
+        guard let parent, parent.presentedViewController == nil else { return }
+        SupportCenter.present(with: mailServer, from: parent, presentingViewName: presentingViewName, delegate: self)
     }
 
     @MainActor
