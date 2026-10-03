@@ -8,7 +8,7 @@
 import Foundation
 import UIKit
 
-public protocol ReportOption {
+public protocol ReportOption: Sendable {
     var icon: UIImage { get }
     var title: String { get }
     var description: String { get }
